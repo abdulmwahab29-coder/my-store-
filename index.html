@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منظومة الراكوبة المتكاملة V6 🇱🇾</title>
+    <style>
+        :root { --bg: #f0f2f5; --box: #ffffff; --text: #1c1e21; --primary: #28a745; --danger: #dc3545; --accent: #007bff; --warning: #ffc107; }
+        .dark-mode { --bg: #18191a; --box: #242526; --text: #e4e6eb; --primary: #31a24c; }
+        
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 70px; transition: 0.3s; }
+        .container { max-width: 600px; margin: auto; padding: 10px; }
+        
+        .top-nav { display: flex; justify-content: space-around; background: var(--box); padding: 15px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .nav-item { cursor: pointer; font-weight: bold; padding: 8px 15px; border-radius: 8px; }
+        .nav-item.active { background: var(--primary); color: white; }
+
+        .card { background: var(--box); border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-right: 5px solid var(--primary); }
+        input { width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; background: var(--box); color: var(--text); font-size: 16px; }
+        
+        .btn { border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; width: 100%; margin-top: 10px; }
+        .btn-edit { background: var(--warning); color: #000; padding: 5px 10px; font-size: 12px; }
+        .btn-sell { background: var(--accent); color: white; padding: 8px 15px; }
+        .btn-add-stock { background: #6c757d; color: white; padding: 5px 10px; font-size: 12px; }
+
+        .variant-line { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid #eee; }
+        .low-stock-card { border-right-color: var(--danger) !important; }
+
+        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-content { background: var(--box); width: 90%; max-width: 400px; padding: 20px; border-radius: 15px; }
+
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-item { background: var(--box); padding: 10px; border-radius: 10px; text-align: center; border-bottom: 3px solid var(--accent); }
+    </style>
+</head>
+<body>
+
+<div class="top-nav">
+    <div class="nav-item active" onclick="switchTab('inventory', this)">📦 المخزن</div>
+    <div class="nav-item" onclick="switchTab('report', this)">📊 التقارير</div>
+    <button onclick="document.body.classList.toggle('dark-mode')" style="background:none; border:none; font-size:20px; cursor:pointer;">🌓</button>
+</div>
+
+<div class="container">
+    
+    <div id="tab-inventory">
+        <div class="card">
+            <h4 style="margin:0 0 10px 0;">➕ إضافة صنف جديد</h4>
+            <input type="text" id="p-name" placeholder="اسم الصنف">
+            <input type="text" id="v-size" placeholder="الحجم / النوع">
+            <div style="display:flex; gap:5px;">
+                <input type="number" id="v-buy" placeholder="سعر الشراء">
+                <input type="number" id="v-sell" placeholder="سعر البيع">
+                <input type="number" id="v-qty" placeholder="الكمية">
+            </div>
+            <button class="btn btn-primary" onclick="saveProduct()">حفظ في المنظومة ✅</button>
+        </div>
+
+        <div style="display:flex; gap:5px; margin-bottom:10px;">
+            <input type="text" id="search-box" onkeyup="render()" placeholder="🔍 ابحث بالاسم..." style="margin:0;">
+            <button class="btn" onclick="toggleLowStockFilter()" id="filter-btn" style="background:#ddd; white-space:nowrap;">فقط الناقص ⚠️</button>
+        </div>
+        
+        <div id="products-list"></div>
+
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="btn" style="flex:1; background:#6c757d; color:white;" onclick="exportData()">📤 حفظ نسخة احتياطية</button>
+            <input type="file" id="import-file" style="display:none" onchange="importData(event)">
+            <button class="btn" style="flex:1; background:#6c757d; color:white;" onclick="document.getElementById('import-file').click()">📥 استعادة البيانات</button>
+        </div>
+    </div>
+
+    <div id="tab-report" style="display:none">
+        <div class="stats-grid">
+            <div class="stat-item"><small>مبيعات اليوم</small><br><b id="rep-sales">0.00</b></div>
+            <div class="stat-item" style="border-color:var(--primary)"><small>أرباح اليوم</small><br><b id="rep-profit">0.00</b></div>
+            <div class="stat-item" style="border-color:var(--warning)"><small>رأس المال الحالي</small><br><b id="rep-capital">0.00</b></div>
+            <div class="stat-item" style="border-color:var(--danger)"><small>الأرباح المتوقعة</small><br><b id="rep-expected">0.00</b></div>
+        </div>
+        <button class="btn btn-primary" style="background:var(--danger); margin-bottom:15px;" onclick="resetSales()">تصفير مبيعات اليوم ⏳</button>
+        <div id="sales-log"></div>
+    </div>
+</div>
+
+<div id="modal">
+    <div class="modal-content" id="modal-body"></div>
+</div>
+
+<script>
+    let db = JSON.parse(localStorage.getItem("rakuba_v6_db")) || [];
+    let sales = JSON.parse(localStorage.getItem("rakuba_v6_sales")) || { totalSales: 0, totalProfit: 0, logs: [] };
+    let lowStockFilter = false;
+
+    function switchTab(tab, el) {
+        document.getElementById('tab-inventory').style.display = tab === 'inventory' ? 'block' : 'none';
+        document.getElementById('tab-report').style.display = tab === 'report' ? 'block' : 'none';
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        el.classList.add('active');
+        if(tab === 'report') updateReport();
+    }
+
+    function saveProduct() {
+        let name = document.getElementById('p-name').value.trim();
+        let size = document.getElementById('v-size').value.trim() || "عادي";
+        let buy = parseFloat(document.getElementById('v-buy').value) || 0;
+        let sell = parseFloat(document.getElementById('v-sell').value) || 0;
+        let qty = parseInt(document.getElementById('v-qty').value) || 0;
+
+        if(!name) return alert("ادخل اسم الصنف!");
+        db.push({ name, variants: [{ size, buy, sell, qty }] });
+        saveData(); render();
+        ['p-name', 'v-size', 'v-buy', 'v-sell', 'v-qty'].forEach(id => document.getElementById(id).value = "");
+    }
+
+    function sellItem(pIdx, vIdx) {
+        let v = db[pIdx].variants[vIdx];
+        if(v.qty <= 0) return alert("نفد من المخزن!");
+        v.qty--;
+        let profit = v.sell - v.buy;
+        sales.totalSales += v.sell;
+        sales.totalProfit += profit;
+        sales.logs.unshift(`${new Date().toLocaleTimeString()} | بعت ${db[pIdx].name} (${v.size})`);
+        saveData(); render();
+    }
+
+    function render() {
+        const list = document.getElementById('products-list');
+        const query = document.getElementById('search-box').value.toLowerCase();
+        list.innerHTML = "";
+        
+        db.forEach((p, pIdx) => {
+            let isLow = p.variants.some(v => v.qty < 3);
+            if (lowStockFilter && !isLow) return;
+            if (!p.name.toLowerCase().includes(query)) return;
+
+            let html = `<div class="card ${isLow ? 'low-stock-card' : ''}">
+                <div style="display:flex; justify-content:space-between"><b>${p.name}</b>
+                <button onclick="deleteP(${pIdx})" style="color:red; border:none; background:none;">🗑️</button></div>`;
+            
+            p.variants.forEach((v, vIdx) => {
+                html += `
+                    <div class="variant-line">
+                        <span>${v.size} <small>(${v.qty} ق)</small><br><b>${v.sell.toFixed(2)} د.ل</b></span>
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn btn-add-stock" onclick="openAddStock(${pIdx}, ${vIdx})">➕</button>
+                            <button class="btn btn-edit" onclick="openEdit(${pIdx}, ${vIdx})">✏️</button>
+                            <button class="btn btn-sell" onclick="sellItem(${pIdx}, ${vIdx})">بيع 🛒</button>
+                        </div>
+                    </div>`;
+            });
+            list.innerHTML += html + `</div>`;
+        });
+    }
+
+    function openAddStock(pIdx, vIdx) {
+        let v = db[pIdx].variants[vIdx];
+        document.getElementById('modal-body').innerHTML = `
+            <h4>تزويد كمية: ${db[pIdx].name}</h4>
+            <p>الكمية الحالية: ${v.qty}</p>
+            <input type="number" id="add-qty-val" placeholder="الكمية المراد إضافتها">
+            <button class="btn btn-primary" onclick="confirmAddStock(${pIdx}, ${vIdx})">إضافة ✅</button>
+            <button class="btn" onclick="closeModal()" style="width:100%; margin-top:5px;">إلغاء</button>`;
+        document.getElementById('modal').style.display = 'flex';
+    }
+
+    function confirmAddStock(pIdx, vIdx) {
+        let val = parseInt(document.getElementById('add-qty-val').value) || 0;
+        db[pIdx].variants[vIdx].qty += val;
+        saveData(); render(); closeModal();
+    }
+
+    function openEdit(pIdx, vIdx) {
+        let p = db[pIdx]; let v = p.variants[vIdx];
+        document.getElementById('modal-body').innerHTML = `
+            <h4>تعديل بيانات</h4>
+            <input type="text" id="e-n" value="${p.name}">
+            <input type="text" id="e-s" value="${v.size}">
+            <input type="number" id="e-b" value="${v.buy}">
+            <input type="number" id="e-sell" value="${v.sell}">
+            <input type="number" id="e-q" value="${v.qty}">
+            <button class="btn btn-primary" onclick="confirmEdit(${pIdx}, ${vIdx})">تحديث ✅</button>
+            <button class="btn" onclick="closeModal()" style="width:100%; margin-top:5px;">إلغاء</button>`;
+        document.getElementById('modal').style.display = 'flex';
+    }
+
+    function confirmEdit(pIdx, vIdx) {
+        db[pIdx].name = document.getElementById('e-n').value;
+        let v = db[pIdx].variants[vIdx];
+        v.size = document.getElementById('e-s').value;
+        v.buy = parseFloat(document.getElementById('e-b').value);
+        v.sell = parseFloat(document.getElementById('e-sell').value);
+        v.qty = parseInt(document.getElementById('e-q').value);
+        saveData(); render(); closeModal();
+    }
+
+    function updateReport() {
+        let capital = 0; let expected = 0;
+        db.forEach(p => p.variants.forEach(v => {
+            capital += (v.buy * v.qty);
+            expected += ((v.sell - v.buy) * v.qty);
+        }));
+        document.getElementById('rep-sales').innerText = sales.totalSales.toFixed(2);
+        document.getElementById('rep-profit').innerText = sales.totalProfit.toFixed(2);
+        document.getElementById('rep-capital').innerText = capital.toFixed(2);
+        document.getElementById('rep-expected').innerText = expected.toFixed(2);
+        document.getElementById('sales-log').innerHTML = "<b>آخر المبيعات:</b><hr>" + 
+            sales.logs.slice(0,10).map(l => `<div class='card' style='padding:8px; margin-bottom:5px; font-size:12px;'>${l}</div>`).join('');
+    }
+
+    function toggleLowStockFilter() {
+        lowStockFilter = !lowStockFilter;
+        document.getElementById('filter-btn').style.background = lowStockFilter ? '#dc3545' : '#ddd';
+        document.getElementById('filter-btn').style.color = lowStockFilter ? 'white' : 'black';
+        render();
+    }
+
+    function exportData() {
+        let data = JSON.stringify({db, sales});
+        let blob = new Blob([data], {type: "application/json"});
+        let a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "rakuba_backup_" + new Date().toLocaleDateString() + ".json";
+        a.click();
+    }
+
+    function importData(e) {
+        let reader = new FileReader();
+        reader.onload = (ev) => {
+            let data = JSON.parse(ev.target.result);
+            db = data.db; sales = data.sales;
+            saveData(); location.reload();
+        };
+        reader.readAsText(e.target.files[0]);
+    }
+
+    function closeModal() { document.getElementById('modal').style.display = 'none'; }
+    function deleteP(idx) { if(confirm("حذف الصنف؟")) { db.splice(idx,1); saveData(); render(); } }
+    function resetSales() { if(confirm("تصفير اليومية؟")) { sales = { totalSales:0, totalProfit:0, logs:[] }; saveData(); updateReport(); } }
+    function saveData() { 
+        localStorage.setItem("rakuba_v6_db", JSON.stringify(db)); 
+        localStorage.setItem("rakuba_v6_sales", JSON.stringify(sales)); 
+    }
+    render();
+</script>
+</body>
+</html>
